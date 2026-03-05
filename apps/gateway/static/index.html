@@ -1,0 +1,220 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AI Assistant Control Panel</title>
+  <style>
+    :root {
+      --bg: #f4f6fb;
+      --card: #ffffff;
+      --ink: #1d2433;
+      --muted: #5e6a84;
+      --accent: #2d6cdf;
+      --ok: #159f6e;
+      --warn: #c77718;
+      --danger: #c03145;
+      --line: #d8dfef;
+    }
+    body { margin: 0; font-family: "Segoe UI", "PingFang SC", sans-serif; background: var(--bg); color: var(--ink); }
+    .wrap { max-width: 1280px; margin: 0 auto; padding: 16px; display: grid; gap: 12px; }
+    .grid { display: grid; gap: 12px; grid-template-columns: 1.1fr 1fr 1fr; }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+    .title { font-size: 14px; font-weight: 700; margin-bottom: 10px; }
+    .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+    input, select, button { padding: 8px; border-radius: 8px; border: 1px solid var(--line); }
+    button { background: var(--accent); color: #fff; border: none; cursor: pointer; }
+    button.secondary { background: #667089; }
+    .kpi { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+    .kpi div { background: #f7f9ff; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
+    .mono { font-family: Consolas, monospace; font-size: 12px; color: var(--muted); }
+    .tasks, .todos, .history, .subtasks { max-height: 260px; overflow: auto; display: grid; gap: 8px; }
+    .item { border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: #fcfdff; }
+    .status { padding: 2px 8px; border-radius: 12px; color: white; font-size: 12px; }
+    .running { background: var(--accent); }
+    .waiting_decision { background: var(--warn); }
+    .completed { background: var(--ok); }
+    .failed { background: var(--danger); }
+    .queued, .planning { background: #6f7b91; }
+    .subcard { border-left: 4px solid var(--line); }
+    .dep { color: var(--muted); font-size: 12px; }
+    @media (max-width: 980px) {
+      .grid { grid-template-columns: 1fr; }
+      .kpi { grid-template-columns: repeat(2, 1fr); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="title">任务下发（AIRI 风格单入口）</div>
+      <div class="row">
+        <input id="title" placeholder="任务标题" style="flex: 1" />
+        <input id="goal" placeholder="任务目标" style="flex: 2" />
+        <select id="level">
+          <option value="L0">L0 核心暂停</option>
+          <option value="L1">L1 高</option>
+          <option value="L2">L2 中</option>
+          <option value="L3">L3 低</option>
+        </select>
+        <button onclick="createTask()">创建任务</button>
+      </div>
+      <div class="mono">创建后点击任务卡片中的 Run 启动并发执行。</div>
+    </div>
+
+    <div class="card">
+      <div class="title">全局大盘</div>
+      <div id="kpi" class="kpi"></div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <div class="title">任务列表（进度 / ETA / 状态）</div>
+        <div id="tasks" class="tasks"></div>
+      </div>
+
+      <div class="card">
+        <div class="title">当前任务 DAG 视图（简化）</div>
+        <div id="subtasks" class="subtasks"></div>
+      </div>
+
+      <div class="card">
+        <div class="title">用户 Todo（决策票据）</div>
+        <div id="todos" class="todos"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title">历史预计/实际耗时</div>
+      <div id="history" class="history"></div>
+    </div>
+  </div>
+
+  <script>
+    let selectedTaskId = null;
+
+    async function api(path, options = {}) {
+      const resp = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
+      if (!resp.ok) throw new Error(await resp.text());
+      return resp.json();
+    }
+
+    async function createTask() {
+      const title = document.getElementById('title').value.trim() || '未命名任务';
+      const goal = document.getElementById('goal').value.trim() || '完成目标';
+      const core_pause_level = document.getElementById('level').value;
+      const task = await api('/tasks', { method: 'POST', body: JSON.stringify({ title, goal, core_pause_level }) });
+      selectedTaskId = task.id;
+      await refreshAll();
+    }
+
+    function statusBadge(status) {
+      return `<span class="status ${status}">${status}</span>`;
+    }
+
+    async function runTask(taskId) {
+      await api(`/tasks/${taskId}/run`, { method: 'POST' });
+      selectedTaskId = taskId;
+      await refreshAll();
+    }
+
+    async function resolveTicket(ticketId, action) {
+      await api(`/tickets/${ticketId}/resolve`, { method: 'POST', body: JSON.stringify({ action }) });
+      await refreshAll();
+    }
+
+    async function rollback(taskId, checkpointId) {
+      await api(`/tasks/${taskId}/rollback/${checkpointId}`, { method: 'POST' });
+      await refreshAll();
+    }
+
+    async function refreshOverview() {
+      const data = await api('/dashboard/overview');
+      document.getElementById('kpi').innerHTML = `
+        <div><b>Active</b><br>${data.active_tasks}</div>
+        <div><b>Completed</b><br>${data.completed_tasks}</div>
+        <div><b>Failed</b><br>${data.failed_tasks}</div>
+        <div><b>Avg Progress</b><br>${(data.avg_progress_active * 100).toFixed(1)}%</div>
+        <div><b>MAPE</b><br>${(data.mape * 100).toFixed(1)}%</div>
+      `;
+    }
+
+    async function refreshTasks() {
+      const tasks = await api('/tasks');
+      const html = tasks.map(t => `
+        <div class="item" onclick="selectedTaskId='${t.id}'; refreshSubtasks();">
+          <div><b>${t.title}</b> ${statusBadge(t.status)}</div>
+          <div class="mono">${t.id}</div>
+          <div>Progress: ${(t.progress * 100).toFixed(1)}%</div>
+          <div>ETA: ${t.eta_seconds ?? '-'}s (conf ${t.eta_confidence ?? '-'})</div>
+          <div class="row">
+            <button onclick="event.stopPropagation(); runTask('${t.id}')">Run</button>
+            <button class="secondary" onclick="event.stopPropagation(); selectedTaskId='${t.id}'; refreshSubtasks();">View DAG</button>
+          </div>
+        </div>
+      `).join('');
+      document.getElementById('tasks').innerHTML = html || '<div class="mono">暂无任务</div>';
+      if (!selectedTaskId && tasks.length > 0) selectedTaskId = tasks[0].id;
+    }
+
+    async function refreshSubtasks() {
+      if (!selectedTaskId) {
+        document.getElementById('subtasks').innerHTML = '<div class="mono">未选择任务</div>';
+        return;
+      }
+      const t = await api(`/tasks/${selectedTaskId}`);
+      const checkpoints = (t.checkpoints || []).slice(-1);
+      const subHtml = t.subtasks.map(s => `
+        <div class="item subcard">
+          <div><b>${s.name}</b> ${statusBadge(s.status)}</div>
+          <div class="dep">depends on: ${s.dependencies?.join(', ') || 'none'}</div>
+          <div class="dep">estimate: ${s.estimate_seconds}s, weight: ${s.weight}</div>
+        </div>
+      `).join('');
+      const cpHtml = checkpoints.map(cp => `
+        <div class="item">
+          <div><b>Checkpoint</b> ${cp.reason}</div>
+          <div class="mono">${cp.id}</div>
+          <button onclick="rollback('${t.id}','${cp.id}')">回退到此检查点</button>
+        </div>
+      `).join('');
+      document.getElementById('subtasks').innerHTML = (subHtml || '<div class="mono">无子任务</div>') + cpHtml;
+    }
+
+    async function refreshTodos() {
+      const todos = await api('/todo/decisions');
+      const html = todos.map(t => `
+        <div class="item">
+          <div><b>${t.summary}</b> ${statusBadge('waiting_decision')}</div>
+          <div>Level: ${t.importance_level}, impact: ${t.impact}</div>
+          <div class="mono">task: ${t.task_id}</div>
+          <div class="row">
+            <button onclick="resolveTicket('${t.id}','approve')">Approve</button>
+            <button class="secondary" onclick="resolveTicket('${t.id}','reject')">Reject</button>
+          </div>
+        </div>
+      `).join('');
+      document.getElementById('todos').innerHTML = html || '<div class="mono">暂无待决策问题</div>';
+    }
+
+    async function refreshHistory() {
+      const rows = await api('/dashboard/history');
+      const html = rows.map(r => `
+        <div class="item">
+          <div><b>${r.title}</b> (${r.task_id.slice(0,8)})</div>
+          <div>planned: ${r.planned_seconds}s, actual: ${r.actual_seconds}s, error: ${(r.error_rate*100).toFixed(1)}%</div>
+        </div>
+      `).join('');
+      document.getElementById('history').innerHTML = html || '<div class="mono">暂无历史完成任务</div>';
+    }
+
+    async function refreshAll() {
+      await Promise.all([refreshOverview(), refreshTasks(), refreshTodos(), refreshHistory()]);
+      await refreshSubtasks();
+    }
+
+    refreshAll();
+    setInterval(refreshAll, 2000);
+  </script>
+</body>
+</html>

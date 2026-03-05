@@ -1,0 +1,74 @@
+﻿[
+    {
+        "project":  "personal_ai_assistant",
+        "batch":  "2026-03",
+        "archived_at":  "2026-03-04_18-37-45",
+        "type":  "analysis",
+        "title":  "2026-03-04_18-37-45__analysis__ai_assistant_fusion_research_and_design",
+        "relative_path":  "analysis/2026-03-04_18-37-45__analysis__ai_assistant_fusion_research_and_design.md",
+        "sha256":  "48ad33b552ca930bb7947229d1e1cdef66766f1e79441343b929a60745cf8817"
+    },
+    {
+        "project":  "personal_ai_assistant",
+        "batch":  "2026-03",
+        "archived_at":  "2026-03-04_18-37-45",
+        "type":  "analysis",
+        "title":  "2026-03-04_18-37-45__analysis__design_benchmark_openclaw_airi",
+        "relative_path":  "analysis/2026-03-04_18-37-45__analysis__design_benchmark_openclaw_airi.md",
+        "sha256":  "d846798b3d37be51ac4f65483fe33e7e41965206ec709db8535d5baf07a0ffc2"
+    },
+    {
+        "project":  "personal_ai_assistant",
+        "batch":  "2026-03",
+        "archived_at":  "2026-03-04_18-37-45",
+        "type":  "architecture",
+        "title":  "2026-03-04_18-37-45__architecture__ai_assistant_architecture_v1",
+        "relative_path":  "architecture/2026-03-04_18-37-45__architecture__ai_assistant_architecture_v1.md",
+        "sha256":  "4a93d510746b2352c30085b2c6ea14aa1a4a29dc7e27346690248e0c99291102"
+    },
+    {
+        "project":  "personal_ai_assistant",
+        "batch":  "2026-03",
+        "archived_at":  "2026-03-04_18-37-45",
+        "type":  "architecture",
+        "title":  "2026-03-04_18-37-45__architecture__database_and_distribution_strategy",
+        "relative_path":  "architecture/2026-03-04_18-37-45__architecture__database_and_distribution_strategy.md",
+        "sha256":  "c4e719fff2f66821063db5a0271869e6ae02a89e2c887510db1c57306d83fc7d"
+    },
+    {
+        "project":  "personal_ai_assistant",
+        "batch":  "2026-03",
+        "archived_at":  "2026-03-04_18-37-45",
+        "type":  "architecture",
+        "title":  "2026-03-04_18-37-45__architecture__execution_control_plane_spec_v1",
+        "relative_path":  "architecture/2026-03-04_18-37-45__architecture__execution_control_plane_spec_v1.md",
+        "sha256":  "5e5a82543356874c763309b0cfd7299f989eee79a46d317b1c801cf15a6541f5"
+    },
+    {
+        "project":  "personal_ai_assistant",
+        "batch":  "2026-03",
+        "archived_at":  "2026-03-04_18-37-45",
+        "type":  "implementation",
+        "title":  "2026-03-04_18-37-45__implementation__readme",
+        "relative_path":  "implementation/2026-03-04_18-37-45__implementation__readme.md",
+        "sha256":  "808e472132518aabc84a88cc4c02151f1f7127e12b1f98c6f057c1049a4b1b18"
+    },
+    {
+        "project":  "personal_ai_assistant",
+        "batch":  "2026-03",
+        "archived_at":  "2026-03-04_18-37-45",
+        "type":  "planning",
+        "title":  "2026-03-04_18-37-45__planning__development_status_and_roadmap",
+        "relative_path":  "planning/2026-03-04_18-37-45__planning__development_status_and_roadmap.md",
+        "sha256":  "5d4858291d12b308347d89ff1c02decc01d38306bb3112a03bddc44ada83b7af"
+    },
+    {
+        "project":  "personal_ai_assistant",
+        "batch":  "2026-03",
+        "archived_at":  "2026-03-04_18-37-45",
+        "type":  "planning",
+        "title":  "2026-03-04_18-37-45__planning__roadmap",
+        "relative_path":  "planning/2026-03-04_18-37-45__planning__roadmap.md",
+        "sha256":  "0ca3dead9834b975d0e8a6475cd4e19a2f0b34891a547ffc9e89036934e87cf2"
+    }
+]
