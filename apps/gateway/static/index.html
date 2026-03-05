@@ -28,7 +28,7 @@
     .kpi { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
     .kpi div { background: #f7f9ff; border: 1px solid var(--line); border-radius: 8px; padding: 8px; }
     .mono { font-family: Consolas, monospace; font-size: 12px; color: var(--muted); }
-    .tasks, .todos, .history, .subtasks { max-height: 260px; overflow: auto; display: grid; gap: 8px; }
+    .tasks, .todos, .history, .subtasks, .agents { max-height: 260px; overflow: auto; display: grid; gap: 8px; }
     .item { border: 1px solid var(--line); border-radius: 8px; padding: 8px; background: #fcfdff; }
     .status { padding: 2px 8px; border-radius: 12px; color: white; font-size: 12px; }
     .running { background: var(--accent); }
@@ -46,6 +46,46 @@
 </head>
 <body>
   <div class="wrap">
+    <div class="card">
+      <div class="title">配置中心（Phase 5）</div>
+      <div class="row">
+        <select id="cfg_db_driver">
+          <option value="sqlite">DB: sqlite</option>
+          <option value="postgres">DB: postgres</option>
+        </select>
+        <input id="cfg_sqlite_path" placeholder="sqlite path" style="flex:1" />
+        <input id="cfg_postgres_dsn" placeholder="postgres dsn" style="flex:2" />
+      </div>
+      <div class="row">
+        <select id="cfg_vector_provider">
+          <option value="pgvector">Vector: pgvector</option>
+          <option value="qdrant">Vector: qdrant</option>
+        </select>
+        <input id="cfg_embedding_dim" type="number" value="1536" style="width:110px" />
+        <select id="cfg_metrics_backend">
+          <option value="sqlite">Metrics: sqlite</option>
+          <option value="clickhouse">Metrics: clickhouse</option>
+        </select>
+        <input id="cfg_clickhouse_dsn" placeholder="clickhouse dsn" style="flex:2" />
+        <button onclick="saveConfig()">保存配置</button>
+        <button class="secondary" onclick="reloadConfig()">重载运行时</button>
+      </div>
+      <div class="row">
+        <select id="cfg_voice_provider">
+          <option value="mock">Voice: mock</option>
+          <option value="http">Voice: http</option>
+          <option value="disabled">Voice: disabled</option>
+        </select>
+        <input id="cfg_default_voice_id" placeholder="default voice id" style="flex:1" />
+      </div>
+      <div class="row">
+        <input id="cfg_voice_base_url" placeholder="voice base url" style="flex:1.6" />
+        <input id="cfg_voice_model" placeholder="voice model" style="flex:1" />
+        <input id="cfg_voice_timeout_ms" type="number" placeholder="timeout ms" style="width:120px" />
+      </div>
+      <div id="cfg_msg" class="mono"></div>
+    </div>
+
     <div class="card">
       <div class="title">任务下发（AIRI 风格单入口）</div>
       <div class="row">
@@ -85,6 +125,18 @@
     </div>
 
     <div class="card">
+      <div class="title">多 Agent 并发管理（P2-A）</div>
+      <div class="row">
+        <input id="agent_id" placeholder="agent_id" />
+        <input id="agent_name" placeholder="agent_name" />
+        <input id="agent_role" placeholder="role" value="general" />
+        <input id="agent_capacity" type="number" value="2" min="1" max="64" style="width: 90px;" />
+        <button onclick="registerAgent()">注册 Agent</button>
+      </div>
+      <div id="agents" class="agents"></div>
+    </div>
+
+    <div class="card">
       <div class="title">历史预计/实际耗时</div>
       <div id="history" class="history"></div>
     </div>
@@ -105,6 +157,55 @@
       const core_pause_level = document.getElementById('level').value;
       const task = await api('/tasks', { method: 'POST', body: JSON.stringify({ title, goal, core_pause_level }) });
       selectedTaskId = task.id;
+      await refreshAll();
+    }
+
+    async function loadConfig() {
+      const c = await api('/config');
+      document.getElementById('cfg_db_driver').value = c.database?.driver || 'sqlite';
+      document.getElementById('cfg_sqlite_path').value = c.database?.sqlite_path || 'data/state.db';
+      document.getElementById('cfg_postgres_dsn').value = c.database?.postgres_dsn || '';
+      document.getElementById('cfg_vector_provider').value = c.vector?.provider || 'pgvector';
+      document.getElementById('cfg_embedding_dim').value = c.vector?.embedding_dim || 1536;
+      document.getElementById('cfg_metrics_backend').value = c.metrics?.backend || 'sqlite';
+      document.getElementById('cfg_clickhouse_dsn').value = c.metrics?.clickhouse_dsn || '';
+      document.getElementById('cfg_voice_provider').value = c.voice?.provider || 'mock';
+      document.getElementById('cfg_default_voice_id').value = c.voice?.default_voice_id || 'airi-cn';
+      document.getElementById('cfg_voice_base_url').value = c.voice?.base_url || 'http://127.0.0.1:9000';
+      document.getElementById('cfg_voice_model').value = c.voice?.model || 'general';
+      document.getElementById('cfg_voice_timeout_ms').value = c.voice?.timeout_ms || 8000;
+    }
+
+    async function saveConfig() {
+      const payload = {
+        database: {
+          driver: document.getElementById('cfg_db_driver').value,
+          sqlite_path: document.getElementById('cfg_sqlite_path').value.trim(),
+          postgres_dsn: document.getElementById('cfg_postgres_dsn').value.trim(),
+        },
+        vector: {
+          provider: document.getElementById('cfg_vector_provider').value,
+          embedding_dim: Number(document.getElementById('cfg_embedding_dim').value || 1536),
+        },
+        metrics: {
+          backend: document.getElementById('cfg_metrics_backend').value,
+          clickhouse_dsn: document.getElementById('cfg_clickhouse_dsn').value.trim(),
+        },
+        voice: {
+          provider: document.getElementById('cfg_voice_provider').value,
+          default_voice_id: document.getElementById('cfg_default_voice_id').value.trim() || 'airi-cn',
+          base_url: document.getElementById('cfg_voice_base_url').value.trim() || 'http://127.0.0.1:9000',
+          model: document.getElementById('cfg_voice_model').value.trim() || 'general',
+          timeout_ms: Number(document.getElementById('cfg_voice_timeout_ms').value || 8000),
+        },
+      };
+      await api('/config', { method: 'POST', body: JSON.stringify(payload) });
+      document.getElementById('cfg_msg').innerText = '配置已保存';
+    }
+
+    async function reloadConfig() {
+      const res = await api('/config/reload', { method: 'POST', body: '{}' });
+      document.getElementById('cfg_msg').innerText = `${res.message} (${res.warning})`;
       await refreshAll();
     }
 
@@ -208,11 +309,36 @@
       document.getElementById('history').innerHTML = html || '<div class="mono">暂无历史完成任务</div>';
     }
 
+    async function registerAgent() {
+      const agent_id = document.getElementById('agent_id').value.trim() || `agent_${Date.now()}`;
+      const name = document.getElementById('agent_name').value.trim() || agent_id;
+      const role = document.getElementById('agent_role').value.trim() || 'general';
+      const capacity = Number(document.getElementById('agent_capacity').value || 2);
+      await api('/agents/register', { method: 'POST', body: JSON.stringify({ agent_id, name, role, capacity }) });
+      await refreshAgents();
+    }
+
+    async function refreshAgents() {
+      const data = await api('/dashboard/agents');
+      const rows = data.agents || [];
+      const html = rows.map(a => `
+        <div class="item">
+          <div><b>${a.name}</b> (${a.agent_id})</div>
+          <div>role: ${a.role}, status: ${a.status}</div>
+          <div>capacity: ${a.capacity}, running: ${a.running}, available: ${a.available}</div>
+        </div>
+      `).join('');
+      document.getElementById('agents').innerHTML =
+        (html || '<div class="mono">暂无 Agent，请先注册</div>') +
+        `<div class="mono">active_tasks: ${data.active_task_count}, active_subtasks: ${data.active_subtask_count}</div>`;
+    }
+
     async function refreshAll() {
-      await Promise.all([refreshOverview(), refreshTasks(), refreshTodos(), refreshHistory()]);
+      await Promise.all([refreshOverview(), refreshTasks(), refreshTodos(), refreshHistory(), refreshAgents()]);
       await refreshSubtasks();
     }
 
+    loadConfig();
     refreshAll();
     setInterval(refreshAll, 2000);
   </script>

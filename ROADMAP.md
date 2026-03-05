@@ -1,101 +1,101 @@
-﻿# AI Assistant Roadmap（基于现有设计文档）
+﻿# AI Assistant Roadmap（最新版）
 
-更新时间：2026-03-04
+更新时间：2026-03-04 22:06:38
 
 ## 目标
 
-在 OpenClaw（工程控制面）与 AIRI（交互体验面）融合基础上，落地一个可插拔、可维护、可视化、可自进化且升级不中断的个人 AI Assistant。
+在 OpenClaw（工程控制面）与 AIRI（交互体验面）融合基础上，落地可插拔、可维护、可视化、可自进化且升级不中断的个人 AI Assistant。
 
 ## Phase 0：架构对齐（已完成）
 
-- 完成融合设计文档、执行控制面规范、安全与成长边界定义。
-- 输出分阶段目标、KPI、风险与回滚策略。
+- 融合设计文档、执行控制面规范、安全边界。
+- 定义 KPI、风险与回滚策略。
 
-验收：文档完整、可直接驱动工程实现。
+## Phase 1：可运行 MVP（已完成）
 
-## Phase 1：可运行 MVP（1-2 周）
+- 单入口交互、任务拆解并发执行、进度与 ETA。
+- DecisionTicket 分级、checkpoint 回退、基础看板。
 
-### 范围
+## Phase 2：工程化底座与平台能力（进行中）
 
-- 单入口智能体交互（API 形态，后续接 AIRI 风格前端）。
-- 任务拆解（DAG）与并发执行。
-- 实时进度与 ETA。
-- DecisionTicket 分级（L0-L3）与用户 Todo。
-- Checkpoint 生成与回退。
-- 监控大盘基础指标与历史任务时间统计。
+### P2-Core（已完成）
 
-### 交付
+- 插件契约 + 插件加载器（MVP）
+- SQLite 结构化存储 + 分页查询
+- PostgreSQL store（CRUD/分页/metrics）
+- pgvector 记忆检索 API（含 sqlite fallback）
+- metrics sink（sqlite/clickhouse 可切换）
 
-- `apps/gateway`：FastAPI 网关与 REST 接口。
-- `packages/agent_runtime`：Planner + Scheduler + Checkpoint。
-- `packages/security_policy`：决策分级与暂停策略。
-- `packages/observability`：大盘统计计算。
+### P2-S（下一优先）：升级不中断底座
 
-### 验收
+范围：
 
-- 支持并发执行与关键路径可视化数据输出。
-- 所有历史任务可查看预计时间、完成时间、误差。
-- L0 级决策自动暂停，L1-L3 自动决策并保留回退点。
+- Active/Candidate 双槽位
+- 升级健康检查与自动回滚
+- 未完成任务恢复策略（基于 checkpoint）
 
-## Phase 2：可维护与可插拔（2-4 周）
+验收：
 
-### 范围
+- 升级失败 5 分钟内自动回退
+- 升级过程主任务不中断
 
-- 插件契约（manifest/schema/lifecycle）。
-- 插件加载器与健康检查。
-- 策略引擎外置化（可接 OPA/OpenFGA）。
-- 持久化与审计增强（数据库迁移、索引、归档）。
+### P2-A：多 Agent 并发可视化管理
 
-### 验收
+范围：
 
-- 新增工具插件不改核心代码。
-- 策略可热更新，异常可 5 分钟内回滚。
+- 多 Agent 泳道视图
+- 任务 DAG 图、关键路径、阻塞节点
+- 并发资源配额面板（agent/tool/model）
+- 任务接管、重试、暂停、回退操作
 
-## Phase 3：升级不中断与自进化（4-8 周）
+验收：
 
-### 范围
+- 同时管理多任务/多 agent 状态
+- 支持按用户、任务类型、状态筛选
+- 可追踪每个子任务 ETA 与依赖关系
 
-- Active/Candidate 双分区升级与灰度切换。
-- 空闲时自反思：失败模式挖掘、策略候选生成、离线回放验证。
-- 自动新增“实验监控项”，验证通过后纳入正式看板。
+### P2-B：AIRI 风格交互层（皮套人）
 
-### 验收
+范围：
 
-- 升级失败不丢任务、不失联、自动回滚。
-- 学习任务不影响主链路 SLA。
+- Persona 管理
+- Avatar/Live2D 渲染接入层
+- 语音输入输出（ASR/TTS）
+- 角色态交互与任务态控制面联动
 
-## Phase 4：高级能力（8 周+）
+验收：
 
-### 范围
+- 用户可通过角色化 UI 下发任务
+- 角色态与任务执行态状态一致
+- 角色模块可插拔、不影响核心执行链路
 
-- MCP Bridge。
-- Durable Execution（Temporal 或 LangGraph）。
-- 高风险执行隔离强化（gVisor / Firecracker）。
+## Phase 3：自进化与治理增强
 
-### 验收
+- 空闲自反思 -> 候选策略 -> 离线回放 -> 小流量发布
+- 实验监控项自动提议与晋升
+- 策略门禁（质量/成本/安全）
 
-- 跨天任务可稳定恢复。
-- 多租户高风险任务具备强隔离保障。
+## Phase 4：高级能力
 
-## Phase 5：数据平台与分发体验（并行推进）
+- MCP Bridge
+- Durable Execution（Temporal/LangGraph）
+- 高风险执行强隔离（gVisor/Firecracker）
 
-### 范围
+## Phase 5：分发与开箱体验
 
-- 数据层升级：`PostgreSQL + pgvector`，并规划 `ClickHouse` 承担 metrics。
-- 日志/检索平台：评估 `OpenSearch / Elastic`（按观测需求决定）。
-- 零命令行安装：桌面安装包（Tauri 或 Electron）。
-- 保留源码模式：`uv + node` 调试链路。
+- 零命令行安装包（Tauri/Electron）
+- GUI 配置中心（替代手工环境变量）
+- 源码模式保留（uv + node）
 
-### 验收
+阶段进展（Step-3 in progress）：
 
-- 普通用户可通过安装包开箱即用（无需手动环境变量配置）。
-- 开发者可 10 分钟内通过源码模式启动完整服务。
-- 历史任务与指标查询性能显著优于 SQLite 原型。
+- Voice Provider 工厂升级（`mock` / `disabled`）与 runtime reload 打通
+- `/voice/providers` 与 `/voice/health` 接口已上线
+- `/avatar/render-config` 与 `/avatar/state` 渲染配置联动完成
 
-## 当前迭代计划（本次编码后）
+## 当前执行顺序（明确）
 
-1. R1：将 SQLite JSON 存储升级为 PostgreSQL 结构化表。
-2. R2：接入 pgvector 记忆检索能力。
-3. R3：引入 metrics 专用存储（ClickHouse）。
-4. R4：桌面安装包与 GUI 配置中心。
-5. R5：保留并完善源码调试链路（uv + node）。
+1. P2-S：升级不中断底座（已完成 MVP）
+2. P2-A：多 Agent 并发可视化管理（已完成 baseline）
+3. P2-B：AIRI 风格皮套人交互层（已完成接口层 baseline）
+4. Phase 5：安装包与 GUI 配置中心（当前优先，Step-3 进行中）

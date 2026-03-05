@@ -1,0 +1,24 @@
+﻿<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Personal AI Assistant Desktop</title>
+  <style>
+    body { margin:0; font-family: Segoe UI, PingFang SC, sans-serif; background:#f4f6fb; color:#1d2433; display:grid; place-items:center; height:100vh; }
+    .box { border:1px solid #d8dfef; background:#fff; border-radius:12px; padding:16px; width:min(90vw,560px); }
+    .mono { font-family: Consolas, monospace; color:#5e6a84; }
+  </style>
+</head>
+<body>
+  <div class="box">
+    <h3>Desktop Shell</h3>
+    <p>如果此页面出现，说明 Electron 外壳已启动。正常情况下会自动跳转到本地 UI。</p>
+    <p class="mono">Platform: <span id="p"></span></p>
+    <p class="mono">URL: http://127.0.0.1:8000/ui</p>
+  </div>
+  <script>
+    document.getElementById('p').innerText = window.desktop?.platform || 'unknown';
+  </script>
+</body>
+</html>

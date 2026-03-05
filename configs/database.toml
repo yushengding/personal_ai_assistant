@@ -1,0 +1,25 @@
+# Database config
+
+[database]
+driver = "sqlite"
+sqlite_path = "data/state.db"
+postgres_dsn = "postgresql://postgres:postgres@localhost:5432/personal_ai_assistant"
+
+[vector]
+provider = "pgvector"
+embedding_dim = 1536
+
+[metrics]
+backend = "sqlite"
+clickhouse_dsn = "clickhouse://default:@localhost:8123/default"
+
+[voice]
+provider = "mock"
+default_voice_id = "airi-cn"
+base_url = "http://127.0.0.1:9000"
+api_key = ""
+model = "general"
+timeout_ms = 8000
+transcribe_path = "/asr/transcribe"
+speak_path = "/tts/speak"
+health_path = "/health"

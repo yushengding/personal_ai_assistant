@@ -1,0 +1,2 @@
+﻿# Optional dependency for ClickHouse metrics backend
+clickhouse-connect==0.8.18

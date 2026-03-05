@@ -6,16 +6,23 @@ import time
 import uuid
 from typing import Dict, Optional
 
+from packages.agent_runtime.agent_manager import AgentManager
 from packages.agent_runtime.models import Checkpoint, DecisionTicket, ImportanceLevel, SubTask, Task
 from packages.agent_runtime.planner import plan_task
 from packages.security_policy.decision import should_pause_for_decision
-from packages.storage.state_store import StateStore
+from packages.storage.repository import TaskStore
 
 
 class TaskEngine:
-    def __init__(self, max_parallel_subtasks: int = 3, store: Optional[StateStore] = None) -> None:
+    def __init__(
+        self,
+        max_parallel_subtasks: int = 3,
+        store: Optional[TaskStore] = None,
+        agent_manager: Optional[AgentManager] = None,
+    ) -> None:
         self.max_parallel_subtasks = max_parallel_subtasks
         self.store = store
+        self.agent_manager = agent_manager
         self.tasks: Dict[str, Task] = {}
         self._task_loops: Dict[str, asyncio.Task] = {}
         self._pause_events: Dict[str, asyncio.Event] = {}
@@ -66,6 +73,34 @@ class TaskEngine:
 
     def list_tasks(self) -> Dict[str, Task]:
         return self.tasks
+
+    def assign_subtask(self, task_id: str, subtask_id: str, agent_id: str) -> dict:
+        task = self._require_task(task_id)
+        if subtask_id not in task.subtasks:
+            raise ValueError("subtask not found")
+        task.subtasks[subtask_id].assigned_agent_id = agent_id
+        self._persist_task(task)
+        return {"task_id": task_id, "subtask_id": subtask_id, "agent_id": agent_id}
+
+    def task_dag(self, task_id: str) -> dict:
+        task = self._require_task(task_id)
+        nodes = []
+        edges = []
+        for st in task.subtasks.values():
+            nodes.append(
+                {
+                    "id": st.id,
+                    "name": st.name,
+                    "status": st.status,
+                    "estimate_seconds": st.estimate_seconds,
+                    "assigned_agent_id": st.assigned_agent_id,
+                }
+            )
+            for dep in st.dependencies:
+                edges.append({"from": dep, "to": st.id})
+
+        critical_path_seconds = self._estimate_critical_path(task)
+        return {"task_id": task_id, "nodes": nodes, "edges": edges, "critical_path_seconds": critical_path_seconds}
 
     async def run_task(self, task_id: str) -> Task:
         task = self._require_task(task_id)
@@ -119,8 +154,23 @@ class TaskEngine:
                 ready = task.runnable_subtasks()
                 available_slots = self.max_parallel_subtasks - len(running_workers)
 
-                for subtask in ready[: max(0, available_slots)]:
-                    worker = asyncio.create_task(self._execute_subtask(task, subtask))
+                selected: list[tuple[SubTask, Optional[str]]] = []
+                for subtask in ready:
+                    if len(selected) >= max(0, available_slots):
+                        break
+
+                    agent_id = None
+                    if self.agent_manager and self.agent_manager.has_agents():
+                        agent_id = self.agent_manager.reserve_for_subtask(
+                            task.id, subtask.id, preferred_agent_id=subtask.assigned_agent_id
+                        )
+                        if not agent_id:
+                            continue
+                        subtask.assigned_agent_id = agent_id
+                    selected.append((subtask, agent_id))
+
+                for subtask, agent_id in selected:
+                    worker = asyncio.create_task(self._execute_subtask(task, subtask, agent_id))
                     running_workers[subtask.id] = worker
 
                 task.recalculate_progress()
@@ -139,7 +189,7 @@ class TaskEngine:
                 if not worker.done():
                     worker.cancel()
 
-    async def _execute_subtask(self, task: Task, subtask: SubTask) -> None:
+    async def _execute_subtask(self, task: Task, subtask: SubTask, agent_id: Optional[str] = None) -> None:
         subtask.status = "running"
         subtask.started_at = time.time()
         self._persist_task(task)
@@ -168,6 +218,8 @@ class TaskEngine:
                 subtask.status = "blocked"
                 task.status = "waiting_decision"
                 self._pause_events[task.id].clear()
+                if self.agent_manager:
+                    self.agent_manager.release_subtask(task.id, subtask.id, agent_id)
                 self._persist_task(task)
                 return
             ticket.status = "auto_resolved"
@@ -177,6 +229,8 @@ class TaskEngine:
         subtask.finished_at = time.time()
         subtask.actual_seconds = subtask.finished_at - (subtask.started_at or subtask.finished_at)
         subtask.status = "completed"
+        if self.agent_manager:
+            self.agent_manager.release_subtask(task.id, subtask.id, agent_id)
         self._persist_task(task)
 
     async def resolve_ticket(self, ticket_id: str, action: str) -> DecisionTicket:
@@ -266,6 +320,24 @@ class TaskEngine:
         completed = [s for s in task.subtasks.values() if s.status in {"completed", "skipped"}]
         confidence = 0.35 + (len(completed) / max(1, len(task.subtasks))) * 0.55
         task.eta_confidence = round(min(0.95, confidence), 2)
+
+    def _estimate_critical_path(self, task: Task) -> int:
+        memo: dict[str, int] = {}
+
+        def dfs(sid: str) -> int:
+            if sid in memo:
+                return memo[sid]
+            st = task.subtasks[sid]
+            if not st.dependencies:
+                memo[sid] = st.estimate_seconds
+                return memo[sid]
+            best = max(dfs(dep) for dep in st.dependencies)
+            memo[sid] = best + st.estimate_seconds
+            return memo[sid]
+
+        if not task.subtasks:
+            return 0
+        return max(dfs(sid) for sid in task.subtasks.keys())
 
     def _find_ticket(self, ticket_id: str) -> tuple[Task, DecisionTicket]:
         for task in self.tasks.values():

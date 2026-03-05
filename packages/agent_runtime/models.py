@@ -33,6 +33,7 @@ class SubTask:
     weight: float
     dependencies: List[str] = field(default_factory=list)
     requires_decision: bool = False
+    assigned_agent_id: Optional[str] = None
     status: str = "ready"
     started_at: Optional[float] = None
     finished_at: Optional[float] = None

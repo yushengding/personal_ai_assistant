@@ -1,0 +1,23 @@
+﻿# Database config example
+
+[database]
+# driver: sqlite | postgres
+driver = "sqlite"
+
+# sqlite
+sqlite_path = "data/state.db"
+
+# postgres
+postgres_dsn = "postgresql://postgres:postgres@localhost:5432/personal_ai_assistant"
+
+[vector]
+# provider: pgvector | qdrant
+provider = "pgvector"
+
+# pgvector table scaffold (see migrations/postgresql/001_init.sql)
+embedding_dim = 1536
+
+[metrics]
+# backend: sqlite | clickhouse
+backend = "sqlite"
+clickhouse_dsn = "clickhouse://default:@localhost:8123/default"
